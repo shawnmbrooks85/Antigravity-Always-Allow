@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "model": "claude-opus-4.6-thinking",
+  "permissions": {
+    "defaultMode": "dontAsk",
+    "allow": [
+      "Read(**)",
+      "Edit(**)",
+      "Write(**)",
+      "Bash(*)",
+      "python(*)",
+      "pip(*)",
+      "mkdir(*)",
+      "WebFetch(*)",
+      "Browser(*)",
+      "OpenURL(*)",
+      "OpenURL(http://127.0.0.1:*)",
+      "OpenURL(http://localhost:*)",
+      "OpenURL(https://127.0.0.1:*)",
+      "OpenURL(https://localhost:*)",
+      "WebFetch(http://127.0.0.1:*)",
+      "WebFetch(http://localhost:*)",
+      "WebFetch(https://127.0.0.1:*)",
+      "WebFetch(https://localhost:*)"
+    ],
+    "deny": [],
+    "ask": [],
+    "additionalDirectories": [
+      "/tmp"
+    ]
+  }
+}

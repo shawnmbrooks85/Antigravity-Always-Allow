@@ -1,0 +1,35 @@
+{
+  "antigravity.primaryAgent": "openai-codex",
+  "antigravity.executionModel": "openai-codex",
+  "antigravity.reasoningModel": "openai-codex",
+  "antigravity.terminal.policy": "turbo",
+  "antigravity.browser.automationPolicy": "alwaysProceed",
+  "antigravity.editor.confirmChanges": "never",
+  "antigravity.artifact.reviewPolicy": "alwaysProceed",
+  "antigravity.commands.autoExecute": true,
+  "antigravity.edits.autoApply": true,
+  "antigravity.permissions": {
+    "defaultMode": "dontAsk",
+    "allow": [
+      "Read(**)",
+      "Edit(**)",
+      "Write(**)",
+      "Bash(*)",
+      "python(*)",
+      "pip(*)",
+      "mkdir(*)",
+      "WebFetch(*)",
+      "Browser(*)",
+      "OpenURL(*)",
+      "OpenURL(http://127.0.0.1:*)",
+      "OpenURL(http://localhost:*)",
+      "OpenURL(https://127.0.0.1:*)",
+      "OpenURL(https://localhost:*)"
+    ],
+    "deny": [],
+    "ask": [],
+    "additionalDirectories": [
+      "/tmp"
+    ]
+  }
+}

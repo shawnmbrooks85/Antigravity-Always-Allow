@@ -1,0 +1,81 @@
+{
+  "claudeCode.enabled": true,
+  "claudeCode.preferredLocation": "panel",
+  "claudeCode.preferredModel": "claude-opus-4.6-thinking",
+  "claudeCode.selectedModel": "claude-opus-4.6-thinking",
+  "claudeCode.allowDangerouslySkipPermissions": true,
+  "claudeCode.initialPermissionMode": "bypassPermissions",
+  "claudeCode.terminalCommandAutoExecution": "alwaysProceed",
+  "claudeCode.edit.autoApply": true,
+  "claudeCode.editor.diff.reviewRequired": false,
+  "antigravity.terminal.policy": "turbo",
+  "antigravity.browser.automationPolicy": "alwaysProceed",
+  "antigravity.editor.confirmChanges": "never",
+  "antigravity.artifact.reviewPolicy": "alwaysProceed",
+  "antigravity.commands.autoExecute": true,
+  "antigravity.edits.autoApply": true,
+  "antigravity.permissions": {
+    "defaultMode": "dontAsk",
+    "allow": [
+      "Read(**)",
+      "Edit(**)",
+      "Write(**)",
+      "Bash(*)",
+      "python(*)",
+      "pip(*)",
+      "mkdir(*)",
+      "WebFetch(*)",
+      "Browser(*)",
+      "OpenURL(*)",
+      "OpenURL(http://127.0.0.1:*)",
+      "OpenURL(http://localhost:*)",
+      "OpenURL(https://127.0.0.1:*)",
+      "OpenURL(https://localhost:*)"
+    ],
+    "deny": [],
+    "ask": [],
+    "additionalDirectories": [
+      "/tmp"
+    ]
+  },
+  "claudeCode.permissions": {
+    "defaultMode": "dontAsk",
+    "allow": [
+      "Read(**)",
+      "Edit(**)",
+      "Write(**)",
+      "Bash(*)",
+      "python(*)",
+      "pip(*)",
+      "mkdir(*)",
+      "WebFetch(*)",
+      "Browser(*)",
+      "OpenURL(*)",
+      "OpenURL(http://127.0.0.1:*)",
+      "OpenURL(http://localhost:*)",
+      "OpenURL(https://127.0.0.1:*)",
+      "OpenURL(https://localhost:*)",
+      "WebFetch(http://127.0.0.1:*)",
+      "WebFetch(http://localhost:*)",
+      "WebFetch(https://127.0.0.1:*)",
+      "WebFetch(https://localhost:*)"
+    ],
+    "deny": [],
+    "ask": [],
+    "additionalDirectories": [
+      "/tmp"
+    ]
+  },
+  "claudeCode.allowedTools": [
+    "Read",
+    "Edit",
+    "Write",
+    "Bash",
+    "mkdir",
+    "python",
+    "pip",
+    "WebFetch",
+    "Browser",
+    "OpenURL"
+  ]
+}
