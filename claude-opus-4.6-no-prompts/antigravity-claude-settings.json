@@ -1,4 +1,9 @@
 {
+  "planningMode": 1,
+  "artifactReviewMode": 2,
+  "cascadeAutoExecutionPolicy": 3,
+  "allowAgentAccessNonWorkspaceFiles": true,
+  "allowCascadeAccessGitignoreFiles": true,
   "claudeCode.enabled": true,
   "claudeCode.preferredLocation": "panel",
   "claudeCode.preferredModel": "claude-opus-4.6-thinking",

@@ -17,6 +17,10 @@ This bundle mirrors your Codex no-prompt setup for Claude in Antigravity.
   - `"antigravity.artifact.reviewPolicy": "alwaysProceed"`
   - `"antigravity.commands.autoExecute": true`
   - `"antigravity.edits.autoApply": true`
+- Current Antigravity preference migration source keys:
+  - `"planningMode": 1` (`OFF`)
+  - `"cascadeAutoExecutionPolicy": 3` (`EAGER`)
+  - `"artifactReviewMode": 2` (`TURBO`)
 - `/tmp` support for Claude file operations via `permissions.additionalDirectories`
 
 ## Import on another Linux machine
@@ -42,7 +46,7 @@ cp /path/to/claude-opus-4.6-no-prompts/claude-code-settings.json \
   /path/to/your-project/.claude/settings.json
 ```
 
-4. Reload Antigravity/VS Code window and start a new Claude conversation.
+4. Fully restart Antigravity and start a new Claude conversation.
 
 ## Notes
 

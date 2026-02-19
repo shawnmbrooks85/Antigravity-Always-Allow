@@ -17,6 +17,10 @@ This folder contains the config files needed to run Codex with no approval promp
   - `"antigravity.artifact.reviewPolicy": "alwaysProceed"`
   - `"antigravity.commands.autoExecute": true`
   - `"antigravity.edits.autoApply": true`
+- Current Antigravity preference migration source keys:
+  - `"planningMode": 1` (`OFF`)
+  - `"cascadeAutoExecutionPolicy": 3` (`EAGER`)
+  - `"artifactReviewMode": 2` (`TURBO`)
 
 ## Import on another Linux machine
 
@@ -49,7 +53,7 @@ jq -s '.[0] * .[1]' \
 mv ~/.config/Antigravity/User/settings.merged.json ~/.config/Antigravity/User/settings.json
 ```
 
-4. Reload Antigravity/VS Code window and start a new Codex thread.
+4. Fully restart Antigravity and start a new Codex thread.
 
 ## Safety note
 

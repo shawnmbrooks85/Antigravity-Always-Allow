@@ -65,6 +65,38 @@ copy_file() {
   log "Wrote: $dst"
 }
 
+reset_agent_preference_migration_flags() {
+  local storage_file="$HOME/.config/Antigravity/User/globalStorage/storage.json"
+
+  if [[ "$DRY_RUN" == "1" ]]; then
+    log "[dry-run] reset one-time agent preference migration flags in $storage_file"
+    return
+  fi
+
+  if [[ ! -f "$storage_file" ]]; then
+    return
+  fi
+
+  need_cmd jq
+
+  local tmp_file
+  tmp_file="$(mktemp)"
+
+  backup_file "$storage_file"
+  jq '
+    ."antigravityUnifiedStateSync.agentPreferences.hasPlanningModeMigrated" = false |
+    ."antigravityUnifiedStateSync.agentPreferences.hasArtifactReviewPolicyMigrated" = false |
+    ."antigravityUnifiedStateSync.agentPreferences.hasTerminalAutoExecutionPolicyMigrated" = false |
+    ."antigravityUnifiedStateSync.agentPreferences.hasTerminalAllowedCommandsMigrated" = false |
+    ."antigravityUnifiedStateSync.agentPreferences.hasTerminalDeniedCommandsMigrated" = false |
+    ."antigravityUnifiedStateSync.agentPreferences.hasAgentFileAccessMigration" = false |
+    ."antigravityUnifiedStateSync.agentPreferences.hasExplainAndFixInCurrentConversationMigrated" = false |
+    ."antigravityUnifiedStateSync.agentPreferences.hasAutoContinueOnMaxGeneratorInvocationsMigrated" = false
+  ' "$storage_file" >"$tmp_file"
+  mv "$tmp_file" "$storage_file"
+  log "Updated: $storage_file (agent preference migration flags reset)"
+}
+
 merge_json_into_file() {
   local base_file="$1"
   local overlay_file="$2"
@@ -128,6 +160,7 @@ MODE="all"
 PROJECT_DIR="$(pwd)"
 REPLACE="0"
 DRY_RUN="0"
+DID_TOUCH_AG_SETTINGS="0"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -194,12 +227,14 @@ apply_codex() {
   backup_file "$CODEX_TOML_DST"
   copy_file "$CODEX_TOML_SRC" "$CODEX_TOML_DST"
   merge_json_into_file "$AG_SETTINGS_DST" "$CODEX_AG_SETTINGS_SRC"
+  DID_TOUCH_AG_SETTINGS="1"
 }
 
 apply_claude() {
   log ""
   log "Applying Claude settings..."
   merge_json_into_file "$AG_SETTINGS_DST" "$CLAUDE_AG_SETTINGS_SRC"
+  DID_TOUCH_AG_SETTINGS="1"
   backup_file "$CLAUDE_GLOBAL_SETTINGS_DST"
   copy_file "$CLAUDE_PROJECT_SETTINGS_SRC" "$CLAUDE_GLOBAL_SETTINGS_DST"
   backup_file "$CLAUDE_PROJECT_SETTINGS_DST"
@@ -218,6 +253,10 @@ case "$MODE" in
     apply_claude
     ;;
 esac
+
+if [[ "$DID_TOUCH_AG_SETTINGS" == "1" ]]; then
+  reset_agent_preference_migration_flags
+fi
 
 log ""
 if [[ "$DRY_RUN" == "1" ]]; then

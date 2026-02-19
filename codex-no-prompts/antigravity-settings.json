@@ -1,4 +1,9 @@
 {
+  "planningMode": 1,
+  "artifactReviewMode": 2,
+  "cascadeAutoExecutionPolicy": 3,
+  "allowAgentAccessNonWorkspaceFiles": true,
+  "allowCascadeAccessGitignoreFiles": true,
   "antigravity.primaryAgent": "openai-codex",
   "antigravity.executionModel": "openai-codex",
   "antigravity.reasoningModel": "openai-codex",

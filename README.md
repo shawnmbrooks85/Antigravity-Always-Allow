@@ -19,6 +19,8 @@ Use `install.sh` to apply configs automatically with backup + merge behavior.
 
 Use `--dry-run` to preview changes and `--replace` to replace Antigravity settings instead of merge.
 
+Installer note: after applying Antigravity settings, `install.sh` resets one-time agent preference migration flags in `~/.config/Antigravity/User/globalStorage/storage.json` so current Antigravity builds will re-import no-prompt preferences on next app restart.
+
 ## Included Bundles
 
 - `codex-no-prompts/`
