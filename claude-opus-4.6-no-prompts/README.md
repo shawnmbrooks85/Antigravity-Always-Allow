@@ -30,6 +30,10 @@ This bundle mirrors your Codex no-prompt setup for Claude in Antigravity.
   - `"antigravity.commands.autoApprove": true` / `"antigravity.terminal.autoApprove": true`
   - `"antigravity.commands.confirmBeforeRun": false` / `"antigravity.terminal.confirmBeforeRun": false`
 - `/tmp` support for Claude file operations via `permissions.additionalDirectories`
+- Expanded wildcard allowlist for common command-driven flows:
+  - `Bash(*)`, `LS(*)`, `Glob(*)`, `Grep(*)`
+  - `python(*)`, `pip(*)`, `mkdir(*)`
+  - `ssh(*)`, `scp(*)`, `rsync(*)`
 
 ## Import on another Linux machine
 
