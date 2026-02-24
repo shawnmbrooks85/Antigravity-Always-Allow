@@ -18,6 +18,9 @@ Examples:
   ./install.sh --all --project ~/code/my-repo
   ./install.sh --codex
   ./install.sh --claude --project ~/code/my-repo
+
+Tip:
+  On native Windows PowerShell, prefer install.ps1.
 EOF
 }
 
@@ -31,6 +34,35 @@ need_cmd() {
     log "Missing required command: $cmd"
     exit 1
   fi
+}
+
+normalize_path_for_bash() {
+  local path="$1"
+
+  # Convert Windows-style env paths when running in Git Bash/MSYS.
+  if [[ "$path" =~ ^[A-Za-z]:\\ ]] && command -v cygpath >/dev/null 2>&1; then
+    cygpath -u "$path"
+    return
+  fi
+
+  printf '%s' "$path"
+}
+
+detect_antigravity_user_dir() {
+  if [[ -n "${ANTIGRAVITY_USER_DIR:-}" ]]; then
+    printf '%s' "$ANTIGRAVITY_USER_DIR"
+    return
+  fi
+
+  # Prefer APPDATA on Windows (Git Bash/MSYS), fall back to ~/.config on Unix.
+  if [[ -n "${APPDATA:-}" ]]; then
+    local appdata
+    appdata="$(normalize_path_for_bash "$APPDATA")"
+    printf '%s' "$appdata/Antigravity/User"
+    return
+  fi
+
+  printf '%s' "$HOME/.config/Antigravity/User"
 }
 
 backup_file() {
@@ -63,6 +95,38 @@ copy_file() {
   mkdir -p "$dst_dir"
   cp "$src" "$dst"
   log "Wrote: $dst"
+}
+
+reset_agent_preference_migration_flags() {
+  local storage_file="$AG_STORAGE_DST"
+
+  if [[ "$DRY_RUN" == "1" ]]; then
+    log "[dry-run] reset one-time agent preference migration flags in $storage_file"
+    return
+  fi
+
+  if [[ ! -f "$storage_file" ]]; then
+    return
+  fi
+
+  need_cmd jq
+
+  local tmp_file
+  tmp_file="$(mktemp)"
+
+  backup_file "$storage_file"
+  jq '
+    ."antigravityUnifiedStateSync.agentPreferences.hasPlanningModeMigrated" = false |
+    ."antigravityUnifiedStateSync.agentPreferences.hasArtifactReviewPolicyMigrated" = false |
+    ."antigravityUnifiedStateSync.agentPreferences.hasTerminalAutoExecutionPolicyMigrated" = false |
+    ."antigravityUnifiedStateSync.agentPreferences.hasTerminalAllowedCommandsMigrated" = false |
+    ."antigravityUnifiedStateSync.agentPreferences.hasTerminalDeniedCommandsMigrated" = false |
+    ."antigravityUnifiedStateSync.agentPreferences.hasAgentFileAccessMigration" = false |
+    ."antigravityUnifiedStateSync.agentPreferences.hasExplainAndFixInCurrentConversationMigrated" = false |
+    ."antigravityUnifiedStateSync.agentPreferences.hasAutoContinueOnMaxGeneratorInvocationsMigrated" = false
+  ' "$storage_file" >"$tmp_file"
+  mv "$tmp_file" "$storage_file"
+  log "Updated: $storage_file (agent preference migration flags reset)"
 }
 
 merge_json_into_file() {
@@ -128,6 +192,7 @@ MODE="all"
 PROJECT_DIR="$(pwd)"
 REPLACE="0"
 DRY_RUN="0"
+DID_TOUCH_AG_SETTINGS="0"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -177,9 +242,11 @@ CODEX_TOML_SRC="$SCRIPT_DIR/codex-no-prompts/codex-config.toml"
 CODEX_AG_SETTINGS_SRC="$SCRIPT_DIR/codex-no-prompts/antigravity-settings.json"
 CLAUDE_AG_SETTINGS_SRC="$SCRIPT_DIR/claude-opus-4.6-no-prompts/antigravity-claude-settings.json"
 CLAUDE_PROJECT_SETTINGS_SRC="$SCRIPT_DIR/claude-opus-4.6-no-prompts/claude-code-settings.json"
+AG_USER_DIR="$(detect_antigravity_user_dir)"
 
 CODEX_TOML_DST="$HOME/.codex/config.toml"
-AG_SETTINGS_DST="$HOME/.config/Antigravity/User/settings.json"
+AG_SETTINGS_DST="$AG_USER_DIR/settings.json"
+AG_STORAGE_DST="$AG_USER_DIR/globalStorage/storage.json"
 CLAUDE_PROJECT_SETTINGS_DST="$PROJECT_DIR/.claude/settings.json"
 CLAUDE_GLOBAL_SETTINGS_DST="$HOME/.claude/settings.json"
 
@@ -194,12 +261,14 @@ apply_codex() {
   backup_file "$CODEX_TOML_DST"
   copy_file "$CODEX_TOML_SRC" "$CODEX_TOML_DST"
   merge_json_into_file "$AG_SETTINGS_DST" "$CODEX_AG_SETTINGS_SRC"
+  DID_TOUCH_AG_SETTINGS="1"
 }
 
 apply_claude() {
   log ""
   log "Applying Claude settings..."
   merge_json_into_file "$AG_SETTINGS_DST" "$CLAUDE_AG_SETTINGS_SRC"
+  DID_TOUCH_AG_SETTINGS="1"
   backup_file "$CLAUDE_GLOBAL_SETTINGS_DST"
   copy_file "$CLAUDE_PROJECT_SETTINGS_SRC" "$CLAUDE_GLOBAL_SETTINGS_DST"
   backup_file "$CLAUDE_PROJECT_SETTINGS_DST"
@@ -219,9 +288,13 @@ case "$MODE" in
     ;;
 esac
 
+if [[ "$DID_TOUCH_AG_SETTINGS" == "1" ]]; then
+  reset_agent_preference_migration_flags
+fi
+
 log ""
 if [[ "$DRY_RUN" == "1" ]]; then
   log "Dry run complete. No files were changed."
 else
-  log "Done. Reload Antigravity/VS Code and start a new conversation."
+  log "Done. Fully restart Antigravity/VS Code and start a new conversation."
 fi

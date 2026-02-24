@@ -1,4 +1,13 @@
 {
+  "planningMode": 1,
+  "artifactReviewMode": 2,
+  "cascadeAutoExecutionPolicy": 3,
+  "terminalAutoExecutionPolicy": 3,
+  "terminalAllowedCommands": [],
+  "terminalDeniedCommands": [],
+  "artifactReviewPolicy": 2,
+  "allowAgentAccessNonWorkspaceFiles": true,
+  "allowCascadeAccessGitignoreFiles": true,
   "antigravity.primaryAgent": "openai-codex",
   "antigravity.executionModel": "openai-codex",
   "antigravity.reasoningModel": "openai-codex",
@@ -8,6 +17,12 @@
   "antigravity.artifact.reviewPolicy": "alwaysProceed",
   "antigravity.commands.autoExecute": true,
   "antigravity.edits.autoApply": true,
+  "cascadeAutoExecutionPolicy": 3,
+  "terminalAutoExecutionPolicy": 3,
+  "antigravity.commands.autoApprove": true,
+  "antigravity.terminal.autoApprove": true,
+  "antigravity.commands.confirmBeforeRun": false,
+  "antigravity.terminal.confirmBeforeRun": false,
   "antigravity.permissions": {
     "defaultMode": "dontAsk",
     "allow": [
