@@ -239,6 +239,440 @@ function Reset-AgentPreferenceMigrationFlags {
     Write-Log "Updated: $StorageFile (agent preference migration flags reset)"
 }
 
+function Find-AntigravityAutoAcceptExtensionRoot {
+    $extensionsDir = Join-Path $env:USERPROFILE ".antigravity\extensions"
+    if (-not (Test-Path -LiteralPath $extensionsDir -PathType Container)) {
+        return $null
+    }
+
+    return Get-ChildItem -LiteralPath $extensionsDir -Directory -Filter "pesosz.antigravity-auto-accept-*" |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
+}
+
+function Apply-ExactTextPatches {
+    param(
+        [string]$Path,
+        [object[]]$Patches
+    )
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        Write-Log "Skipped missing file: $Path"
+        return
+    }
+
+    $content = Get-Content -Raw -LiteralPath $Path
+    $updated = $content
+    $appliedLabels = @()
+
+    foreach ($patch in $Patches) {
+        $label = [string]$patch.Label
+        $search = [string]$patch.Search
+        $replacement = [string]$patch.Replacement
+
+        if ($updated.Contains($replacement)) {
+            Write-Log "Already patched: $label"
+            continue
+        }
+
+        if (-not $updated.Contains($search)) {
+            Write-Log "Skipped patch (pattern not found): $label"
+            continue
+        }
+
+        $updated = $updated.Replace($search, $replacement)
+        $appliedLabels += $label
+    }
+
+    if ($appliedLabels.Count -eq 0) {
+        return
+    }
+
+    Backup-File -Path $Path
+    if ($DryRun) {
+        foreach ($label in $appliedLabels) {
+            Write-Log "[dry-run] patch $label in $Path"
+        }
+        return
+    }
+
+    Write-TextFileWithRetry -Path $Path -Content $updated
+    Write-Log "Patched: $Path"
+}
+
+function Patch-AntigravityAutoAcceptExtension {
+    $extensionRoot = Find-AntigravityAutoAcceptExtensionRoot
+    if ($null -eq $extensionRoot) {
+        Write-Log "Antigravity Auto Accept extension not found. Skipping extension patch."
+        return
+    }
+
+    Write-Log ""
+    Write-Log "Patching Antigravity Auto Accept extension..."
+
+    $extensionJsPath = Join-Path $extensionRoot.FullName "extension.js"
+    $distExtensionJsPath = Join-Path $extensionRoot.FullName "dist\extension.js"
+    $autoAcceptJsPath = Join-Path $extensionRoot.FullName "main_scripts\auto-accept.js"
+
+    $extensionAcceptCommandsSearch = @"
+const ACCEPT_COMMANDS_ANTIGRAVITY = [
+    'antigravity.command.accept',
+    'antigravity.agent.acceptAgentStep',
+    'antigravity.interactiveCascade.acceptSuggestedAction',
+    'antigravity.terminalCommand.accept',
+    'antigravity.terminalCommand.run',
+    'antigravity.executeCascadeAction',
+    'antigravity.command.continue',
+    'antigravity.agent.continue',
+    'antigravity.command.continueGenerating',
+    'antigravity.continueGenerating',
+    'antigravity.command.alwaysAllow',
+    'antigravity.agent.alwaysAllow',
+    'antigravity.permission.alwaysAllow',
+    'antigravity.browser.alwaysAllow',
+    'antigravity.command.allowOnce',
+    'antigravity.permission.allowOnce',
+    'antigravity.agent.allowOnce'
+];
+"@
+
+    $extensionAcceptCommandsReplacement = @"
+const ACCEPT_COMMANDS_ANTIGRAVITY = [
+    'antigravity.command.accept',
+    'antigravity.agent.acceptAgentStep',
+    'antigravity.interactiveCascade.acceptSuggestedAction',
+    'antigravity.terminalCommand.accept',
+    'antigravity.terminalCommand.run',
+    'antigravity.executeCascadeAction',
+    'antigravity.command.continue',
+    'antigravity.agent.continue',
+    'antigravity.command.continueGenerating',
+    'antigravity.continueGenerating',
+    'antigravity.command.alwaysAllow',
+    'antigravity.agent.alwaysAllow',
+    'antigravity.permission.alwaysAllow',
+    'antigravity.browser.alwaysAllow',
+    'antigravity.command.allowOnce',
+    'antigravity.permission.allowOnce',
+    'antigravity.agent.allowOnce'
+];
+
+const ANTIGRAVITY_FILE_ACCEPT_COMMANDS = [
+    'antigravity.prioritized.agentAcceptAllInFile',
+    'antigravity.prioritized.agentAcceptFocusedHunk'
+];
+"@
+
+    $extensionExecuteSearch = @"
+async function executeAcceptCommandsForIDE() {
+    const ide = (currentIDE || '').toLowerCase();
+    if (ide === 'antigravity') {
+        // Safety hardening: do not execute global Antigravity commands from poll loop.
+        // Approvals should happen only via prompt-scoped CDP DOM handling.
+        return;
+    }
+
+    const commands = [...new Set([...getAcceptCommandsForIDE(), ...runtimeSafeCommands])];
+"@
+
+    $extensionExecuteReplacement = @"
+async function executeAcceptCommandsForIDE() {
+    const ide = (currentIDE || '').toLowerCase();
+    if (ide === 'antigravity') {
+        const commands = [...new Set([
+            ...ANTIGRAVITY_FILE_ACCEPT_COMMANDS,
+            ...antigravityDiscoveredCommands.filter(cmd => {
+                const c = (cmd || '').toLowerCase();
+                return c.includes('agentacceptallinfile') || c.includes('agentacceptfocusedhunk');
+            })
+        ])];
+
+        if (commands.length === 0) return;
+        await Promise.allSettled(commands.map(cmd => vscode.commands.executeCommand(cmd)));
+        return;
+    }
+
+    const commands = [...new Set([...getAcceptCommandsForIDE(), ...runtimeSafeCommands])];
+"@
+
+    Apply-ExactTextPatches -Path $extensionJsPath -Patches @(
+        @{
+            Label = "extension.js accept command constant"
+            Search = $extensionAcceptCommandsSearch
+            Replacement = $extensionAcceptCommandsReplacement
+        },
+        @{
+            Label = "extension.js Antigravity command execution"
+            Search = $extensionExecuteSearch
+            Replacement = $extensionExecuteReplacement
+        }
+    )
+
+    $distAcceptCommandsSearch = @"
+var ACCEPT_COMMANDS_ANTIGRAVITY = [
+  "antigravity.command.accept",
+  "antigravity.agent.acceptAgentStep",
+  "antigravity.interactiveCascade.acceptSuggestedAction",
+  "antigravity.terminalCommand.accept",
+  "antigravity.terminalCommand.run",
+  "antigravity.executeCascadeAction",
+  "antigravity.command.continue",
+  "antigravity.agent.continue",
+  "antigravity.command.continueGenerating",
+  "antigravity.continueGenerating",
+  "antigravity.command.alwaysAllow",
+  "antigravity.agent.alwaysAllow",
+  "antigravity.permission.alwaysAllow",
+  "antigravity.browser.alwaysAllow",
+  "antigravity.command.allowOnce",
+  "antigravity.permission.allowOnce",
+  "antigravity.agent.allowOnce"
+];
+"@
+
+    $distAcceptCommandsReplacement = @"
+var ACCEPT_COMMANDS_ANTIGRAVITY = [
+  "antigravity.command.accept",
+  "antigravity.agent.acceptAgentStep",
+  "antigravity.interactiveCascade.acceptSuggestedAction",
+  "antigravity.terminalCommand.accept",
+  "antigravity.terminalCommand.run",
+  "antigravity.executeCascadeAction",
+  "antigravity.command.continue",
+  "antigravity.agent.continue",
+  "antigravity.command.continueGenerating",
+  "antigravity.continueGenerating",
+  "antigravity.command.alwaysAllow",
+  "antigravity.agent.alwaysAllow",
+  "antigravity.permission.alwaysAllow",
+  "antigravity.browser.alwaysAllow",
+  "antigravity.command.allowOnce",
+  "antigravity.permission.allowOnce",
+  "antigravity.agent.allowOnce"
+];
+var ANTIGRAVITY_FILE_ACCEPT_COMMANDS = [
+  "antigravity.prioritized.agentAcceptAllInFile",
+  "antigravity.prioritized.agentAcceptFocusedHunk"
+];
+"@
+
+    $distExecuteSearch = @"
+async function executeAcceptCommandsForIDE() {
+  const ide = (currentIDE || "").toLowerCase();
+  if (ide === "antigravity") {
+    return;
+  }
+  const commands = [.../* @__PURE__ */ new Set([...getAcceptCommandsForIDE(), ...runtimeSafeCommands])];
+"@
+
+    $distExecuteReplacement = @"
+async function executeAcceptCommandsForIDE() {
+  const ide = (currentIDE || "").toLowerCase();
+  if (ide === "antigravity") {
+    const commands2 = [.../* @__PURE__ */ new Set([
+      ...ANTIGRAVITY_FILE_ACCEPT_COMMANDS,
+      ...antigravityDiscoveredCommands.filter((cmd) => {
+        const c = (cmd || "").toLowerCase();
+        return c.includes("agentacceptallinfile") || c.includes("agentacceptfocusedhunk");
+      })
+    ])];
+    if (commands2.length === 0)
+      return;
+    await Promise.allSettled(commands2.map((cmd) => vscode.commands.executeCommand(cmd)));
+    return;
+  }
+  const commands = [.../* @__PURE__ */ new Set([...getAcceptCommandsForIDE(), ...runtimeSafeCommands])];
+"@
+
+    Apply-ExactTextPatches -Path $distExtensionJsPath -Patches @(
+        @{
+            Label = "dist/extension.js accept command constant"
+            Search = $distAcceptCommandsSearch
+            Replacement = $distAcceptCommandsReplacement
+        },
+        @{
+            Label = "dist/extension.js Antigravity command execution"
+            Search = $distExecuteSearch
+            Replacement = $distExecuteReplacement
+        }
+    )
+
+    $autoAcceptBypassSearch = "                const bypassExclude = reason === 'run-prompt';"
+    $autoAcceptBypassReplacement = "                const bypassExclude = reason === 'run-prompt' || reason === 'file-edit';"
+
+    $autoAcceptPermissionSearch = @"
+                    if (reason === 'permission') {
+                        const state = window.__autoAcceptFreeState || {};
+                        state.lastPermissionClickAt = now;
+                        state.lastPermissionX = rect.left + (rect.width / 2);
+                        state.lastPermissionY = rect.top + (rect.height / 2);
+                        state.permissionApprovals = (state.permissionApprovals || 0) + 1;
+                        window.__autoAcceptFreeState = state;
+
+                        const origin = el.closest('[role="dialog"], .notification-toast, .notification-list-item, .monaco-dialog-box, .monaco-dialog-modal-block, .chat-tool-call, .chat-tool-response, [class*="tool-call"], [data-testid*="tool-call"]');
+                        if (origin && origin.setAttribute) {
+                            origin.setAttribute('data-aaf-permission-origin-at', String(now));
+                        }
+                    }
+"@
+
+    $autoAcceptPermissionReplacement = @"
+                    if (reason === 'permission') {
+                        const state = window.__autoAcceptFreeState || {};
+                        state.lastPermissionClickAt = now;
+                        state.lastPermissionX = rect.left + (rect.width / 2);
+                        state.lastPermissionY = rect.top + (rect.height / 2);
+                        state.permissionApprovals = (state.permissionApprovals || 0) + 1;
+                        window.__autoAcceptFreeState = state;
+
+                        const origin = el.closest('[role="dialog"], .notification-toast, .notification-list-item, .monaco-dialog-box, .monaco-dialog-modal-block, .chat-tool-call, .chat-tool-response, [class*="tool-call"], [data-testid*="tool-call"]');
+                        if (origin && origin.setAttribute) {
+                            origin.setAttribute('data-aaf-permission-origin-at', String(now));
+                        }
+                    } else if (reason === 'file-edit') {
+                        const state = window.__autoAcceptFreeState || {};
+                        state.fileEdits = (state.fileEdits || 0) + 1;
+                        window.__autoAcceptFreeState = state;
+                    }
+"@
+
+    $autoAcceptFileReviewSearch = @'
+        // Hard-disable broad generic auto-click fallback to prevent random IDE clicks.
+        // Remaining logic already handles explicit command/permission/recovery prompts above.
+        return clickedCount;
+'@
+
+    $autoAcceptFileReviewReplacement = @'
+        // 1.7) File review actions (Accept all / Accept) in the agent review row
+        const findFileReviewContext = (btn) => {
+            let node = btn;
+            let depth = 0;
+            while (node && depth < 12) {
+                try {
+                    const contextText = String(node.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
+                    const neighbors = Array.from(node.querySelectorAll(ACTION_NODE_SELECTOR));
+                    const hasAcceptAction = neighbors.some(el => /\baccept(\s+all)?\b/i.test(getActionText(el)));
+                    const hasRejectAction = neighbors.some(el => /\breject(\s+all)?\b/i.test(getActionText(el)));
+                    const hasFileMarker =
+                        /\b\d+\s+file(?:s)?\s+with\s+changes\b/i.test(contextText) ||
+                        contextText.includes('file with changes');
+                    const hasDiffMarker =
+                        /(^|\s)[+-]\d+(\s|$)/.test(contextText) ||
+                        /[a-z]:\\|\/.+\.[a-z0-9]{1,8}\b/i.test(contextText);
+
+                    if ((hasAcceptAction && hasRejectAction && hasFileMarker) || (hasFileMarker && hasDiffMarker)) {
+                        return node;
+                    }
+                } catch (e) { }
+
+                node = node.parentElement;
+                depth++;
+            }
+
+            return null;
+        };
+
+        const fileEditCandidates = [];
+        for (const btn of queryAll(ACTION_NODE_SELECTOR)) {
+            const text = getActionText(btn);
+            if (!text) continue;
+            if (/\breject\b|\bcancel\b|\bdeny\b|\bdiscard\b/i.test(text)) continue;
+            if (!/\baccept(\s+all)?\b|\bapply(\s+all)?\b|\bkeep\b/i.test(text)) continue;
+
+            const container = findFileReviewContext(btn);
+            if (!container) continue;
+
+            const containerText = String(container.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
+            let score = 0;
+            if (/\baccept all\b/i.test(text)) score += 10;
+            else if (/\baccept\b/i.test(text)) score += 5;
+            if (/\b\d+\s+file(?:s)?\s+with\s+changes\b/i.test(containerText)) score += 10;
+            if (containerText.includes('file with changes')) score += 6;
+            if (containerText.includes('reject all')) score += 4;
+            if (/(^|\s)[+-]\d+(\s|$)/.test(containerText)) score += 2;
+
+            fileEditCandidates.push({ btn, text, score });
+        }
+
+        if (fileEditCandidates.length > 0) {
+            fileEditCandidates.sort((a, b) => b.score - a.score);
+            const best = fileEditCandidates[0];
+            if (clickElement(best.btn, 'file-edit')) {
+                log(`File review accepted automatically: "${best.text}" (score=${best.score})`);
+                return clickedCount;
+            }
+        }
+
+        // Hard-disable broad generic auto-click fallback to prevent random IDE clicks.
+        // Remaining logic already handles explicit command/permission/recovery prompts above.
+        return clickedCount;
+'@
+
+    Apply-ExactTextPatches -Path $autoAcceptJsPath -Patches @(
+        @{
+            Label = "main_scripts/auto-accept.js file-edit bypass"
+            Search = $autoAcceptBypassSearch
+            Replacement = $autoAcceptBypassReplacement
+        },
+        @{
+            Label = "main_scripts/auto-accept.js file-edit counter"
+            Search = $autoAcceptPermissionSearch
+            Replacement = $autoAcceptPermissionReplacement
+        },
+        @{
+            Label = "main_scripts/auto-accept.js file review auto-accept"
+            Search = $autoAcceptFileReviewSearch
+            Replacement = $autoAcceptFileReviewReplacement
+        },
+        @{
+            Label = "main_scripts/auto-accept.js state.fileEdits"
+            Search = @'
+        window.__autoAcceptFreeState = {
+            isRunning: false,
+            sessionID: 0,
+            clicks: 0,
+            lastRunShortcutAt: 0,
+'@
+            Replacement = @'
+        window.__autoAcceptFreeState = {
+            isRunning: false,
+            sessionID: 0,
+            clicks: 0,
+            fileEdits: 0,
+            lastRunShortcutAt: 0,
+'@
+        },
+        @{
+            Label = "main_scripts/auto-accept.js stats.fileEdits"
+            Search = @'
+        return { 
+            clicks: window.__autoAcceptFreeState.clicks || 0,
+            tabCount: window.__autoAcceptFreeState.tabNames?.length || 0,
+'@
+            Replacement = @'
+        return { 
+            clicks: window.__autoAcceptFreeState.clicks || 0,
+            fileEdits: window.__autoAcceptFreeState.fileEdits || 0,
+            tabCount: window.__autoAcceptFreeState.tabNames?.length || 0,
+'@
+        },
+        @{
+            Label = "main_scripts/auto-accept.js reset fileEdits"
+            Search = @'
+        state.bannedCommands = config.bannedCommands || [];
+        state.tabNames = [];
+        state.lastRunShortcutAt = 0;
+'@
+            Replacement = @'
+        state.bannedCommands = config.bannedCommands || [];
+        state.tabNames = [];
+        state.fileEdits = 0;
+        state.lastRunShortcutAt = 0;
+'@
+        }
+    )
+}
+
 if ($Help) {
     Show-Usage
     exit 0
@@ -304,6 +738,8 @@ switch ($Mode) {
 if ($didTouchAgSettings) {
     Reset-AgentPreferenceMigrationFlags -StorageFile $agStorageDst
 }
+
+Patch-AntigravityAutoAcceptExtension
 
 Write-Log ""
 if ($DryRun) {

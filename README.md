@@ -2,6 +2,8 @@
 
 Portable config bundles for running Antigravity/Codex/Claude with minimal approval prompts.
 
+On Windows, `install.ps1` also patches the installed `pesosz.antigravity-auto-accept` extension when it is present so Claude/Opus file diffs can auto-accept again.
+
 ## Auto Installer
 
 Use the installer for your shell to apply configs with backup + merge behavior.
@@ -36,6 +38,7 @@ Use `--dry-run` to preview changes and `--replace` to replace Antigravity settin
 Use `-DryRun` and `-Replace` with `install.ps1`.
 
 Installer note: after applying Antigravity settings, the installer resets one-time agent preference migration flags in Antigravity `globalStorage/storage.json` so current Antigravity builds re-import no-prompt preferences on next app restart.
+Installer note: the PowerShell installer now also patches `extension.js`, `dist/extension.js`, and `main_scripts/auto-accept.js` inside the installed `pesosz.antigravity-auto-accept` extension, with backups, if that extension exists.
 
 ## Included Bundles
 
